@@ -1,0 +1,311 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Astrix Shop</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root {
+  --bg:#100a20;
+  --panel:#241536;
+  --pink:#ed8bf5;
+  --purple:#9955e9;
+  --text:#fff5ff;
+  --muted:#c7b0d5;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  font-family:system-ui,-apple-system,sans-serif;
+  background:radial-gradient(ellipse at top,#40205e,var(--bg) 65%);
+  color:var(--text);
+  min-height:100vh;
+}
+header {
+  padding:28px 20px 18px;
+  text-align:center;
+}
+.logo {
+  font-family:Georgia,serif;
+  font-size:31px;
+  letter-spacing:3px;
+  color:#ffe0ff;
+  text-shadow:0 0 22px #d65aff;
+}
+.subtitle {
+  color:var(--muted);
+  font-size:12px;
+  letter-spacing:2px;
+  margin-top:8px;
+}
+main {padding:10px 16px 100px;max-width:620px;margin:auto}
+.hero {
+  border:1px solid #8654a9;
+  border-radius:22px;
+  padding:20px;
+  margin-bottom:24px;
+  background:linear-gradient(135deg,#4a256b,#20112e);
+  box-shadow:0 12px 35px #0005;
+}
+.hero h1 {font-size:23px;margin:0 0 8px}
+.hero p {color:#e1c5ee;font-size:14px;margin:0}
+h2 {font-size:19px;margin:18px 0}
+.cards {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+.card {
+  overflow:hidden;
+  border-radius:19px;
+  background:var(--panel);
+  border:1px solid #684381;
+}
+.card img {
+  width:100%;
+  aspect-ratio:3/4;
+  object-fit:cover;
+  display:block;
+}
+.card-body {padding:12px}
+.card-title {font-size:16px;font-weight:700}
+.card-sub {font-size:12px;color:var(--muted);margin:5px 0 12px}
+button {
+  border:0;
+  cursor:pointer;
+  font:inherit;
+}
+.buy {
+  width:100%;
+  padding:11px 8px;
+  border-radius:12px;
+  background:linear-gradient(120deg,#ad62f2,#e67ae6);
+  color:white;
+  font-weight:700;
+}
+.buy:disabled {opacity:.5}
+.empty {
+  color:var(--muted);
+  padding:24px;
+  background:#241536;
+  border-radius:16px;
+  text-align:center;
+}
+nav {
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  display:flex;
+  justify-content:space-around;
+  padding:12px 5px max(12px,env(safe-area-inset-bottom));
+  background:#1b1029;
+  border-top:1px solid #56396d;
+}
+nav button {
+  color:#d4b6e8;
+  background:none;
+  font-size:12px;
+  padding:5px 8px;
+}
+nav button.active {color:#ffadfa}
+.hidden {display:none}
+#message {color:#e8c5f7;font-size:13px;margin:10px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">✦ ASTRIX SHOP ✦</div>
+  <div class="subtitle">MAGICAL CHARACTER COLLECTION</div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Магия начинается здесь ✨</h1>
+    <p>Открывай эксклюзивных персонажей и собирай свою коллекцию.</p>
+  </div>
+
+  <section id="shop">
+    <h2>✦ Каталог персонажей</h2>
+    <div id="message">Загрузка магазина...</div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section id="collection" class="hidden">
+    <h2>Моя коллекция</h2>
+    <div id="owned" class="empty">Загрузка...</div>
+  </section>
+
+  <section id="events" class="hidden">
+    <h2>Специальные события</h2>
+    <div class="empty">
+      Скоро здесь появятся эксклюзивные коллекции и события.
+    </div>
+  </section>
+
+  <section id="profile" class="hidden">
+    <h2>Мой профиль</h2>
+    <div class="empty" id="profile-info"></div>
+  </section>
+</main>
+
+<nav>
+  <button class="active" data-page="shop">✦ Магазин</button>
+  <button data-page="collection">♡ Коллекция</button>
+  <button data-page="events">☆ События</button>
+  <button data-page="profile">♙ Профиль</button>
+</nav>
+
+<script>
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+}
+
+const initData = tg?.initData || "";
+
+const headers = {
+  "X-Telegram-Init-Data": initData
+};
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: {
+      ...headers,
+      ...(options.headers || {})
+    }
+  });
+  if (!response.ok) {
+    throw new Error("Ошибка сервера: " + response.status);
+  }
+  return response.json();
+}
+
+function element(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+async function loadProducts() {
+  const cards = document.getElementById("cards");
+  const message = document.getElementById("message");
+  cards.replaceChildren();
+
+  if (!initData) {
+    message.textContent = "Открой магазин через Telegram.";
+    return;
+  }
+
+  try {
+    const data = await api("/api/products");
+    message.textContent = data.products.length
+      ? ""
+      : "Пока нет опубликованных персонажей.";
+
+    for (const product of data.products) {
+      const card = element("article", "card");
+      const image = element("img");
+      image.src = product.preview_url;
+      image.alt = product.name;
+      image.loading = "lazy";
+
+      const body = element("div", "card-body");
+      body.append(
+        element("div", "card-title", product.name),
+        element("div", "card-sub", product.description)
+      );
+
+      const buy = element(
+        "button", "buy", "⭐ " + product.price + " Stars"
+      );
+      buy.onclick = () => purchase(product.sku, buy);
+
+      body.append(buy);
+      card.append(image, body);
+      cards.append(card);
+    }
+  } catch (error) {
+    message.textContent = "Не удалось загрузить каталог.";
+  }
+}
+
+async function purchase(sku, button) {
+  if (!tg?.openInvoice) {
+    alert("Оплата доступна внутри Telegram.");
+    return;
+  }
+
+  button.disabled = true;
+  try {
+    const data = await api("/api/invoice", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({sku})
+    });
+
+    tg.openInvoice(data.invoice_url, status => {
+      button.disabled = false;
+      if (status === "paid") {
+        tg.showAlert("Оплата принята. Оригинал придёт в чат с ботом.");
+      }
+    });
+  } catch (error) {
+    button.disabled = false;
+    tg.showAlert("Не удалось создать счёт.");
+  }
+}
+
+async function loadCollection() {
+  const owned = document.getElementById("owned");
+  if (!initData) {
+    owned.textContent = "Открой приложение через Telegram.";
+    return;
+  }
+
+  try {
+    const data = await api("/api/purchases");
+    owned.replaceChildren();
+    if (!data.purchases.length) {
+      owned.textContent = "У тебя пока нет приобретённых персонажей.";
+      return;
+    }
+    for (const item of data.purchases) {
+      const block = element("div", "card-body", "✦ " + item.name);
+      owned.append(block);
+    }
+  } catch (error) {
+    owned.textContent = "Не удалось загрузить коллекцию.";
+  }
+}
+
+function showPage(page) {
+  for (const section of document.querySelectorAll("main section")) {
+    section.classList.toggle("hidden", section.id !== page);
+  }
+  for (const button of document.querySelectorAll("nav button")) {
+    button.classList.toggle(
+      "active", button.dataset.page === page
+    );
+  }
+  if (page === "collection") loadCollection();
+}
+
+document.querySelectorAll("nav button").forEach(button => {
+  button.onclick = () => showPage(button.dataset.page);
+});
+
+const user = tg?.initDataUnsafe?.user;
+document.getElementById("profile-info").textContent = user
+  ? `${user.first_name || "Пользователь"} · ID ${user.id}`
+  : "Профиль доступен внутри Telegram.";
+
+loadProducts();
+</script>
+</body>
+</html>
