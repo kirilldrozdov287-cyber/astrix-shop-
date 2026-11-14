@@ -197,11 +197,9 @@ async def invoice(request):
 
     # Формат payload совместим с обработчиком оплаты в bot.py
 
-
-
-
 payload = f"astrix:{sku}:{product['price']}"
-    result = await telegram_api("createInvoiceLink", {
+   
+result = await telegram_api("createInvoiceLink", {
         "title": product["name"][:32],
         "description": product["description"][:255],
         "payload": payload,
